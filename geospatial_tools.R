@@ -1,8 +1,14 @@
 # Packages
 library(raster)
+library(USAboundaries)
+library(FedData)
+library(rgeos)
+library(rgdal)
+library(tidyverse)
+library(countrycode)
 
 
-# Download and unzip data from online ----------------------------------------------------------------------------------------------------------
+# Download and unzip data from online ----------------------------------------------------------------------------------------
 
 download.unzip = function(download.link, download.folder, unzip = TRUE) {
   
@@ -24,23 +30,23 @@ download.unzip = function(download.link, download.folder, unzip = TRUE) {
     tryCatch( {
       
       utils::download.file(download.link, temp, mode = "wb", quiet = TRUE)
-    
+      
       # Unzip to download folder
-      message(paste0("Unzipping ", basename(download.link)))
+      message(paste0("  Unzipping ", basename(download.link)))
       unzip(temp, overwrite = TRUE, junkpaths = TRUE, exdir = download.folder)
       output_location = paste0(download.folder, "/", basename(unzip(temp, list = TRUE)[[1]]))
       
       # Remove temporary file
       unlink(temp)
       
-      }, 
+    }, 
+    
+    # Catch any errors
+    error = function(err) { 
+      message("URL timed out or does not exist. Original error message:")
+      message(err)
       
-      # Catch any errors
-      error = function(err) { 
-        message("URL timed out or does not exist. Original error message:")
-        message(err)
-        
-      } )
+    } )
     
   } else {
     
@@ -52,14 +58,14 @@ download.unzip = function(download.link, download.folder, unzip = TRUE) {
       # Attempt to download
       utils::download.file(download.link, output_location, mode = "wb", quiet = TRUE) 
       
-      }, 
+    }, 
     
-      # Catch any errors
-      error = function(err) { 
-        message("URL timed out or does not exist. Original error message:")
-        message(err) 
-        
-      } )
+    # Catch any errors
+    error = function(err) { 
+      message("URL timed out or does not exist. Original error message:")
+      message(err) 
+      
+    } )
     
   }
   
@@ -75,7 +81,77 @@ download.folder = "D:/Geography/GIS_data/Vegetation/Tree data/hansen2013_treecov
 output = download.unzip(download.link, download.folder, unzip = FALSE)
 
 
-# Test of compressing file after download ------------------------------------------------------------------------------------------------------
+
+# Run for batch --------------------------------------------------------------------------------------------------------------
+
+coord.grids = function(shape.file) {
+  
+  # For a given shapefile, returns vector of corresponding 10 degree tile IDs in "XXN_XXXW" format
+  #
+  # Args:
+  #   shape.file: Input shapefile
+  #
+  # Returns:
+  #   Vector containing corresponding tile IDs in "XXN_XXXW" format
+
+  # Round to nearest 10 degrees
+  bbox.rounded = 10 * ceiling(bbox(shape.file) / 10)
+  
+  # All x and y
+  all_x = seq(bbox.rounded[1,1], bbox.rounded[1,2], 10)
+  all_y = seq(bbox.rounded[2,1], bbox.rounded[2,2], 10)
+  
+  # Identify all combinations of x and y
+  all_combs = expand.grid(x=all_x, 
+                          y=all_y)
+  
+  # Convert to "XXN_XXXW" format
+  all_combs %>%
+    
+    # Remove duplicates
+    distinct(x, y) %>% 
+    
+    # For each row
+    rowwise() %>% 
+    
+    # Convert values to N/E/S/W and return vector
+    mutate(x = x - 10,
+           y_string = ifelse(y < 0, paste0(abs(y), "N"), paste0(y, "N")),
+           x_string = ifelse(x < 0, paste0(stringr::str_pad(abs(x), 3, pad = 0), "W"), 
+                             paste0(stringr::str_pad(abs(x), 3, pad = 0), "E")),
+           combined = paste0(y_string, "_", x_string)) %>% 
+    .$combined
+
+}
+
+#Specify target ISO country code and path to downloaded shapefile
+country_name = countrycode('USA', 'country.name', 'iso3c')
+country = getData("GADM", 
+                  country = country_name, 
+                  level=0); plot(country)
+
+# # For USA, remove Hawaii and Alaska
+# country = getData("GADM", 
+#                   country = "USA", 
+#                   level=1)[c(4:12, 14:length(country)),]
+
+# Iterate over all corresponding tiles
+for (i in coord.grids(shape.file = country)) { 
+  
+  # Use try to skip tiles that do not download correctly
+  try({
+    
+    download.link = paste0("https://edcintl.cr.usgs.gov/downloads/sciweb1/shared/gtc/downloads/treecover2010_v3_individual/", 
+                           i, "_treecover2010_v3.tif.zip")
+    download.folder = "D:/Geography/GIS_data/Vegetation/Tree data/hansen2013_treecover"
+    download.unzip(download.link, download.folder, unzip = TRUE) 
+    
+  })
+  
+}
+
+
+# Test of compressing file after download ------------------------------------------------------------------------------------
 #   Currently has issues with pyramids in Arc, changing values in QGIS
 
 # Read in raster and export compressed
@@ -86,4 +162,59 @@ writeRaster(x=raster_in, filename = paste0(tools::file_path_sans_ext(output), "_
 unlink(output)
 
 
+# Download US NED data ------------------------------------------------------------------------------------------------------
+
+g.clip <- function(shape.file, bounding.box) {
+  
+  # Uses bounding box to clip shapefile into two parts
+  #
+  # Args:
+  #   shape.file: URL/location of file to be downloaded
+  #   bounding.box: Folder directory to export downloaded/unzipped file
+  #
+  # Returns:
+  #   Shapefile clipped to bounding box
+  
+  if(class(bounding.box) == "matrix") { 
+    
+    bounding.poly <- as(extent(as.vector(t(bounding.box))), "SpatialPolygons") 
+    
+  } else { 
+    
+    b_poly <- as(extent(bounding.box), "SpatialPolygons")
+    
+  }
+  
+  gIntersection(shape.file, bounding.poly, byid = TRUE)
+  
+}
+
+# Extract boundary
+state_name = "Virginia"
+state_boundary = us_states(resolution = "high", states = state_name)
+state_boundary = spTransform(state_boundary, CRS("+proj=utm +datum=NAD83 +zone=12"))
+plot(state_boundary)
+
+# # Extract country
+# state_boundary = getData("GADM", country = "MEX", level=0)
+# state_boundary = spTransform(state_boundary, CRS("+proj=utm +datum=NAD83 +zone=12"))
+
+# # Optional: split vertically to process both halves separately (for large areas)
+# new_bb = bbox(state_boundary)
+# new_bb[2] = new_bb[2] + (new_bb[4] - new_bb[2]) / 2  # north side
+# new_bb[4] = new_bb[2] + (new_bb[4] - new_bb[2]) / 2  # south side
+# state_boundary = g.clip(state_boundary, new_bb)
+# plot(state_boundary)
+# 
+# # Optional: split horizontally to process both halves separately (for large areas)
+# new_bb = bbox(state_boundary)
+# new_bb[1] = new_bb[1] + (new_bb[3] - new_bb[1]) / 2  # east side
+# # new_bb[3] = new_bb[1] + (new_bb[3] - new_bb[1]) / 2  # west side
+# state_boundary = g.clip(state_boundary, new_bb)
+# plot(state_boundary)
+
+# Get the NED; return a raster
+NED = get_ned(template=state_boundary, label=paste0(state_name,""), 
+              raw.dir = "D:/Geography/GIS_data/Elevation/USA/NED/",  
+              extraction.dir = "D:/Geography/GIS_data/Elevation/USA/NED/")
 
