@@ -7,6 +7,7 @@ library(rgdal)
 library(tidyverse)
 library(countrycode)
 
+options(timeout = 240000)
 
 # Download and unzip data from online ----------------------------------------------------------------------------------------
 
@@ -74,11 +75,11 @@ download.unzip = function(download.link, download.folder, unzip = TRUE) {
 }
 
 
-# Example 
-download.link = "https://edcintl.cr.usgs.gov/downloads/sciweb1/shared/gtc/downloads/treecover2010_v3_individual/80N_120W_treecover2010_v3.tif.zip"
-download.link = "https://storage.googleapis.com/earthenginepartners-hansen/GFC2015/Hansen_GFC2015_treecover2000_40N_080W.tif"
-download.folder = "D:/Geography/GIS_data/Vegetation/Tree data/hansen2013_treecover"
-output = download.unzip(download.link, download.folder, unzip = FALSE)
+# # Example 
+# download.link = "https://edcintl.cr.usgs.gov/downloads/sciweb1/shared/gtc/downloads/treecover2010_v3_individual/80N_120W_treecover2010_v3.tif.zip"
+# download.link = "https://storage.googleapis.com/earthenginepartners-hansen/GFC2015/Hansen_GFC2015_treecover2000_40N_080W.tif"
+# download.folder = "D:/Geography/GIS_data/Vegetation/Tree data/hansen2013_treecover"
+# output = download.unzip(download.link, download.folder, unzip = FALSE)
 
 
 
@@ -119,13 +120,12 @@ coord.grids = function(shape.file) {
            y_string = ifelse(y < 0, paste0(abs(y), "N"), paste0(y, "N")),
            x_string = ifelse(x < 0, paste0(stringr::str_pad(abs(x), 3, pad = 0), "W"), 
                              paste0(stringr::str_pad(abs(x), 3, pad = 0), "E")),
-           combined = paste0(y_string, "_", x_string)) %>% 
-    .$combined
+           combined = paste0(y_string, "_", x_string))
 
 }
 
 #Specify target ISO country code and path to downloaded shapefile
-country_name = countrycode('USA', 'country.name', 'iso3c')
+country_name = countrycode('Canada', 'country.name', 'iso3c')
 country = getData("GADM", 
                   country = country_name, 
                   level=0); plot(country)
@@ -135,20 +135,58 @@ country = getData("GADM",
 #                   country = "USA", 
 #                   level=1)[c(4:12, 14:length(country)),]
 
+# # For USA, select only Alaska
+# country = getData("GADM",
+#                   country = "USA",
+#                   level=1)[3,]
+# plot(country)
+
+# For USA, select only Hawaii
+country = getData("GADM",
+                  country = "USA",
+                  level=1)[13,]
+plot(country)
+
+# Table of coordinates for country
+coord.table = coord.grids(shape.file = country)
+
 # Iterate over all corresponding tiles
-for (i in coord.grids(shape.file = country)) { 
+for (i in 1:nrow(coord.table)) { 
   
-  # Use try to skip tiles that do not download correctly
-  try({
+  tile.id = coord.table[[i,"combined"]]
+  download.folder = "D:/Geography/GIS_data/Vegetation/Tree data/hansen2013_treecover" 
+  plot(SpatialPoints(coord.table[i,1:2]), add = TRUE, col = "green", bg = "green", pch = 20, cex = 5)
+  
+  if (!file.exists(paste0(download.folder, "/", tile.id, "_treecover2010_v3.tif"))) {
+  
+    # Use try to skip tiles that do not download correctly
+    tryCatch({
+      
+      download.link = paste0("https://edcintl.cr.usgs.gov/downloads/sciweb1/shared/gtc/downloads/treecover2010_v3_individual/", 
+                             tile.id, "_treecover2010_v3.tif.zip")
+  
+      download.unzip(download.link, download.folder, unzip = TRUE) 
+      
+    }, 
     
-    download.link = paste0("https://edcintl.cr.usgs.gov/downloads/sciweb1/shared/gtc/downloads/treecover2010_v3_individual/", 
-                           i, "_treecover2010_v3.tif.zip")
-    download.folder = "D:/Geography/GIS_data/Vegetation/Tree data/hansen2013_treecover"
-    download.unzip(download.link, download.folder, unzip = TRUE) 
+    # Catch any errors
+    error = function(err) { 
+      
+      plot(SpatialPoints(coord.table[i,1:2]), add = TRUE, col = "red", bg = "red", pch = 20, cex = 5)
+      
+    } )
+  
+  } else { 
     
-  })
+    # If file exists
+    message(paste0(tile.id, "_treecover2010_v3.tif", " already exists; skipping"))
+    
+  }
   
 }
+
+
+
 
 
 # Test of compressing file after download ------------------------------------------------------------------------------------
@@ -218,3 +256,29 @@ NED = get_ned(template=state_boundary, label=paste0(state_name,""),
               raw.dir = "D:/Geography/GIS_data/Elevation/USA/NED/",  
               extraction.dir = "D:/Geography/GIS_data/Elevation/USA/NED/")
 
+
+
+# Import large number of rasters into dataframe plottable in ggplot2-----------------------------------------------------------------------
+
+# Function to import raster and fix column names
+import.ascii = function(input.string) {
+  
+  # Import and convert to points
+  input.raster = raster(input.string)
+  input.points = rasterToPoints(input.raster)
+  input.df = data.frame(input.points)
+  colnames(input.df) = c("long", "lat", "value")
+  input.df$file = input.string
+  
+  return(input.df)
+  
+}
+
+# Read in all files
+rasters.df = dir(pattern = "example_regex",      
+                 recursive = TRUE)  %>% 
+  
+  # Read in each individually and merge output
+  map(import.ascii) %>%
+  reduce(bind_rows) %>% 
+  as.tbl()
