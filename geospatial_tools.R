@@ -228,7 +228,7 @@ g.clip <- function(shape.file, bounding.box) {
 }
 
 # Extract boundary
-state_name = "Virginia"
+state_name = "Michigan"
 state_boundary = us_states(resolution = "high", states = state_name)
 state_boundary = spTransform(state_boundary, CRS("+proj=utm +datum=NAD83 +zone=12"))
 plot(state_boundary)
@@ -237,13 +237,13 @@ plot(state_boundary)
 # state_boundary = getData("GADM", country = "MEX", level=0)
 # state_boundary = spTransform(state_boundary, CRS("+proj=utm +datum=NAD83 +zone=12"))
 
-# # Optional: split vertically to process both halves separately (for large areas)
-# new_bb = bbox(state_boundary)
+# Optional: split vertically to process both halves separately (for large areas)
+new_bb = bbox(state_boundary)
 # new_bb[2] = new_bb[2] + (new_bb[4] - new_bb[2]) / 2  # north side
-# new_bb[4] = new_bb[2] + (new_bb[4] - new_bb[2]) / 2  # south side
-# state_boundary = g.clip(state_boundary, new_bb)
-# plot(state_boundary)
-# 
+new_bb[4] = new_bb[2] + (new_bb[4] - new_bb[2]) / 2  # south side
+state_boundary = g.clip(state_boundary, new_bb)
+plot(state_boundary)
+
 # # Optional: split horizontally to process both halves separately (for large areas)
 # new_bb = bbox(state_boundary)
 # new_bb[1] = new_bb[1] + (new_bb[3] - new_bb[1]) / 2  # east side
@@ -252,7 +252,7 @@ plot(state_boundary)
 # plot(state_boundary)
 
 # Get the NED; return a raster
-NED = get_ned(template=state_boundary, label=paste0(state_name,""), 
+NED = get_ned(template=state_boundary, label=paste0(state_name,"1"), 
               raw.dir = "D:/Geography/GIS_data/Elevation/USA/NED/",  
               extraction.dir = "D:/Geography/GIS_data/Elevation/USA/NED/")
 
@@ -282,3 +282,67 @@ rasters.df = dir(pattern = "example_regex",
   map(import.ascii) %>%
   reduce(bind_rows) %>% 
   as.tbl()
+
+
+
+# Clip large mosaic DEM to SRTM tiles --------------------------------------------------------------------------------
+
+library(tidyverse)
+library(gdalUtils)
+library(sf)
+
+setwd("D:/SRTM_tiles")
+
+# Load in SRTM grid and MDB boundary shapefile
+srtm_grid = read_sf("data/srtm_grid_1deg/srtm_grid_1deg.shp")
+mdb_boundary = read_sf("data/mdb_boundary_16km.shp") %>% 
+               st_transform("+proj=longlat +datum=WGS84 +no_defs")
+
+# Find SRTM tiles intersecting with MDB boundary
+srtm_grid_mdb = srtm_grid[st_intersects(srtm_grid, mdb_boundary, FALSE),]
+plot(srtm_grid_mdb[,1], col = "grey")
+
+# Create dataframe of tile coordinates, adding in one pixel overlap required by SRTM hgt format
+coords = srtm_grid_mdb$id %>% 
+          as.data.frame() %>% 
+          rename(name = ".") %>% 
+          mutate(left = as.numeric(substr(name, 5, 7)),
+                 bottom = -as.numeric(substr(name, 2, 3)),
+                 
+                 # Add one pixel overlap to right and top side of tiles
+                 right = left + 1 + 1/60/60, 
+                 top = bottom + 1 + 1/60/60)
+
+# Loop over all tiles
+for (i in 1:nrow(coords)) {
+  
+  # Show status
+  plot(srtm_grid_mdb[i,1], col = "red", add = TRUE)
+  
+  # Clip mosaic dataset by coordinates and write to temporary tif file
+  out_file_tif = paste0("results/raw/", coords[i, "name"], ".tif")
+  gdalwarp(srcfile="//scipnns001.ad.unsw.edu.au/geospatial/public/SRTM_DEMs/1secSRTM_DEMs_v1.0/DEM/Mosaic/dem1sv1_0",
+           dstfile=out_file_tif,
+           te=coords[i, 2:5],
+           overwrite = TRUE)
+  
+  # Export tif file to SRTM .hgt format
+  out_file_hgt = paste0("results/raw/", coords[i, "name"], ".hgt")
+  gdal_translate(src_dataset=out_file_tif, 
+                 dst_dataset=out_file_hgt, 
+                 of = "SRTMHGT")
+  
+  # Zip resulting SRTM .hgt format file
+  zip_file = paste0("results/zipped/", coords[i, "name"], ".SRTMGL1.hgt.zip")
+  zip(zipfile=zip_file, files=out_file_hgt)
+  
+  # Remove tif file
+  unlink(out_file_tif)
+  
+  # Plot status
+  plot(srtm_grid_mdb[i,1], col = "green", add = TRUE)
+  message(paste0(round(i * 100 / nrow(coords), 1), "% complete"))
+
+}
+
+
