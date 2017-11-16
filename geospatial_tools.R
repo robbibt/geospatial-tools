@@ -4,12 +4,14 @@ library(USAboundaries)
 library(FedData)
 library(rgeos)
 library(rgdal)
-library(tidyverse)
 library(countrycode)
+library(gdalUtils)
+library(sf)
+library(tidyverse)
 
 options(timeout = 240000)
 
-# Download and unzip data from online ----------------------------------------------------------------------------------------
+# Download and unzip data from online ---------------------------------------------------------------------------------
 
 download.unzip = function(download.link, download.folder, unzip = TRUE) {
   
@@ -83,7 +85,7 @@ download.unzip = function(download.link, download.folder, unzip = TRUE) {
 
 
 
-# Run for batch --------------------------------------------------------------------------------------------------------------
+# Run for batch -------------------------------------------------------------------------------------------------------
 
 coord.grids = function(shape.file) {
   
@@ -141,11 +143,11 @@ country = getData("GADM",
 #                   level=1)[3,]
 # plot(country)
 
-# For USA, select only Hawaii
-country = getData("GADM",
-                  country = "USA",
-                  level=1)[13,]
-plot(country)
+# # For USA, select only Hawaii
+# country = getData("GADM",
+#                   country = "USA",
+#                   level=1)[13,]
+# plot(country)
 
 # Table of coordinates for country
 coord.table = coord.grids(shape.file = country)
@@ -186,23 +188,22 @@ for (i in 1:nrow(coord.table)) {
 }
 
 
-
-
-
-# Test of compressing file after download ------------------------------------------------------------------------------------
+# Test of compressing file after download -----------------------------------------------------------------------------
 #   Currently has issues with pyramids in Arc, changing values in QGIS
 
 # Read in raster and export compressed
 raster_in = raster(output)
-writeRaster(x=raster_in, filename = paste0(tools::file_path_sans_ext(output), "_comp.tif"), options=c("COMPRESS=DEFLATE", "ZLEVEL=1"))
+writeRaster(x=raster_in,
+            filename = paste0(tools::file_path_sans_ext(output), "_comp.tif"),
+            options=c("COMPRESS=DEFLATE", "ZLEVEL=1"))
 
 # Delete original file
 unlink(output)
 
 
-# Download US NED data ------------------------------------------------------------------------------------------------------
+# Download US NED data ------------------------------------------------------------------------------------------------
 
-g.clip <- function(shape.file, bounding.box) {
+g.clip = function(shape.file, bounding.box) {
   
   # Uses bounding box to clip shapefile into two parts
   #
@@ -258,7 +259,7 @@ NED = get_ned(template=state_boundary, label=paste0(state_name,"1"),
 
 
 
-# Import large number of rasters into dataframe plottable in ggplot2-----------------------------------------------------------------------
+# Import large number of rasters into dataframe plottable in ggplot2---------------------------------------------------
 
 # Function to import raster and fix column names
 import.ascii = function(input.string) {
@@ -285,64 +286,40 @@ rasters.df = dir(pattern = "example_regex",
 
 
 
-# Clip large mosaic DEM to SRTM tiles --------------------------------------------------------------------------------
+# Identify tiles that overlap region ----------------------------------------------------------------------------------
 
-library(tidyverse)
-library(gdalUtils)
-library(sf)
+# Setup
+grid_shp = "grid.shp"
+region_shp = "region.shp"
 
-setwd("D:/SRTM_tiles")
-
-# Load in SRTM grid and MDB boundary shapefile
-srtm_grid = read_sf("data/srtm_grid_1deg/srtm_grid_1deg.shp")
-mdb_boundary = read_sf("data/mdb_boundary_16km.shp") %>% 
+# Load in SRTM grid and MDB boundary shapefile; transform to same projection
+grid = read_sf(grid_shp) %>%
+               st_transform("+proj=longlat +datum=WGS84 +no_defs")
+region = read_sf(region_shp) %>%
                st_transform("+proj=longlat +datum=WGS84 +no_defs")
 
-# Find SRTM tiles intersecting with MDB boundary
-srtm_grid_mdb = srtm_grid[st_intersects(srtm_grid, mdb_boundary, FALSE),]
-plot(srtm_grid_mdb[,1], col = "grey")
-
-# Create dataframe of tile coordinates, adding in one pixel overlap required by SRTM hgt format
-coords = srtm_grid_mdb$id %>% 
-          as.data.frame() %>% 
-          rename(name = ".") %>% 
-          mutate(left = as.numeric(substr(name, 5, 7)),
-                 bottom = -as.numeric(substr(name, 2, 3)),
-                 
-                 # Add one pixel overlap to right and top side of tiles
-                 right = left + 1 + 1/60/60, 
-                 top = bottom + 1 + 1/60/60)
-
-# Loop over all tiles
-for (i in 1:nrow(coords)) {
-  
-  # Show status
-  plot(srtm_grid_mdb[i,1], col = "red", add = TRUE)
-  
-  # Clip mosaic dataset by coordinates and write to temporary tif file
-  out_file_tif = paste0("results/raw/", coords[i, "name"], ".tif")
-  gdalwarp(srcfile="//scipnns001.ad.unsw.edu.au/geospatial/public/SRTM_DEMs/1secSRTM_DEMs_v1.0/DEM/Mosaic/dem1sv1_0",
-           dstfile=out_file_tif,
-           te=coords[i, 2:5],
-           overwrite = TRUE)
-  
-  # Export tif file to SRTM .hgt format
-  out_file_hgt = paste0("results/raw/", coords[i, "name"], ".hgt")
-  gdal_translate(src_dataset=out_file_tif, 
-                 dst_dataset=out_file_hgt, 
-                 of = "SRTMHGT")
-  
-  # Zip resulting SRTM .hgt format file
-  zip_file = paste0("results/zipped/", coords[i, "name"], ".SRTMGL1.hgt.zip")
-  zip(zipfile=zip_file, files=out_file_hgt)
-  
-  # Remove tif file
-  unlink(out_file_tif)
-  
-  # Plot status
-  plot(srtm_grid_mdb[i,1], col = "green", add = TRUE)
-  message(paste0(round(i * 100 / nrow(coords), 1), "% complete"))
-
-}
+# Find tiles intersecting with region
+grid_region = grid[st_intersects(grid, region, sparse = FALSE),]
 
 
+
+# Use gdalUtils to clip and translate raster --------------------------------------------------------------------------
+
+# Setup
+input_raster = "input"
+output_tif = "output.tif"
+output_translated = "output.hgt"
+coordinates = c(150, -30, 151, -29)
+
+# Clip mosaic dataset by coordinates and write to temporary .tif file
+gdalwarp(srcfile = input_raster,
+         dstfile = output_tif,
+         te = coordinates,
+         overwrite = TRUE,
+         multi = TRUE)
+  
+# Translate to new format
+gdal_translate(src_dataset = output_tif,
+               dst_dataset = output_translated,
+               of = "SRTMHGT")
+  
