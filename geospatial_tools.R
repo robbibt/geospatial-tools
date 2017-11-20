@@ -262,7 +262,7 @@ NED = get_ned(template=state_boundary, label=paste0(state_name,"1"),
 # Import large number of rasters into dataframe plottable in ggplot2---------------------------------------------------
 
 # Function to import raster and fix column names
-import.ascii = function(input.string) {
+raster.to.df = function(input.string) {
   
   # Import and convert to points
   input.raster = raster(input.string)
@@ -280,7 +280,7 @@ rasters.df = dir(pattern = "example_regex",
                  recursive = TRUE)  %>% 
   
   # Read in each individually and merge output
-  map(import.ascii) %>%
+  map(raster.to.df) %>%
   reduce(bind_rows) %>% 
   as.tbl()
 
@@ -323,3 +323,40 @@ gdal_translate(src_dataset = output_tif,
                dst_dataset = output_translated,
                of = "SRTMHGT")
   
+
+
+# Import large number of rasters, using gdalwarp on import -----------------------------------------------------------
+
+# Function to import raster and fix column names
+gdalwarp.to.df = function(input.string, factor, temp.file = "temp.tif") {
+  
+  # Resize images
+  input.raster = gdalUtils::gdalwarp(srcfile = input.string,
+                                     dstfile = temp.file,
+                                     tr=res(input.raster)*factor,
+                                     overwrite = TRUE,
+                                     multi = TRUE,
+                                     output_Raster=TRUE)
+  
+  # Convert to points
+  input.points = rasterToPoints(input.raster)
+  input.df = data.frame(input.points)
+  colnames(input.df) = c("long", "lat", "value")
+  input.df$file = input.string
+  
+  # Remove file
+  unlink("temp.tif")
+  
+  return(input.df)
+  
+}
+
+# Read in all files
+rasters.df = dir(pattern = "*.tif$",      
+                 recursive = TRUE)[1]  %>% 
+  
+  # Read in each individually and merge output
+  map(gdalwarp.to.df, 10, "temp.tif") %>%
+  reduce(bind_rows) %>% 
+  as.tbl()
+
