@@ -6,6 +6,8 @@ Tools for spatial analysis in R and Python
 * [R: Great circles with sf and sp](https://www.jessesadler.com/post/great-circles-sp-sf/)
 * [R: Hillshade with spherical environment mapping](https://atriplex.info/blog/index.php/2018/02/21/hillshade-with-spherical-environment-mapping/)
 * [Python: GIS with Shapely and Fiona](https://macwright.org/2012/10/31/gis-with-python-shapely-fiona.html)
+* [Python: Manage spatial data using Geopandas and Shapely in Python](https://cambridgespark.com/content/tutorials/geopandas/index.html)
+* [Python: Monitoring dam water levels using Sentinel 2 and Openstreetmap](https://medium.com/sentinel-hub/global-earth-observation-service-from-your-laptop-23157680cf5e)
 
 # GIS tools:
 * [Terrain Sculptor software for generalising DEMs to keep only important features](http://terraincartography.com/terrainsculptor/)
