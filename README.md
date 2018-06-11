@@ -10,9 +10,11 @@ Tools for spatial analysis in R and Python
 * [Python: Manage spatial data using Geopandas and Shapely in Python](https://cambridgespark.com/content/tutorials/geopandas/index.html)
 * [Python: Monitoring dam water levels using Sentinel 2 and Openstreetmap](https://medium.com/sentinel-hub/global-earth-observation-service-from-your-laptop-23157680cf5e)
 * [JavaScript: Sentinel colour correction with JavaScript](https://medium.com/sentinel-hub/color-correction-with-javascript-d721e12a919) 
+* [Docker: Using Docker to become a more effective data scientist](https://towardsdatascience.com/how-docker-can-help-you-become-a-more-effective-data-scientist-7fc048ef91d5)
 
 # Unsorted
-* https://towardsdatascience.com/how-docker-can-help-you-become-a-more-effective-data-scientist-7fc048ef91d5
+
 
 # GIS tools:
 * [Terrain Sculptor software for generalising DEMs to keep only important features](http://terraincartography.com/terrainsculptor/)
+* [Python: Whitebox GIS tools as a Python package](https://pypi.org/project/whitebox/) 
