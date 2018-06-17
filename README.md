@@ -19,3 +19,4 @@ Tools for spatial analysis in R and Python
 # GIS tools:
 * [Terrain Sculptor software for generalising DEMs to keep only important features](http://terraincartography.com/terrainsculptor/)
 * [Python: Whitebox GIS tools as a Python package](https://pypi.org/project/whitebox/) 
+* [QGIS/GRASS: v.clean.advanced and rmdangle (t 0.04) for removing dangling lines](https://gis.stackexchange.com/questions/118201/automated-removal-of-dangles-loose-ends-in-line-with-qgis)
