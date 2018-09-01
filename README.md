@@ -12,6 +12,7 @@ Tools for spatial analysis in R and Python
 * [JavaScript: Sentinel colour correction with JavaScript](https://medium.com/sentinel-hub/color-correction-with-javascript-d721e12a919) 
 * [Docker: Using Docker to become a more effective data scientist](https://towardsdatascience.com/how-docker-can-help-you-become-a-more-effective-data-scientist-7fc048ef91d5)
 * [Python: Image processing utilities including hillshade, slope, aspect](https://github.com/sixy6e/image-processing/blob/master/src/hillshade.py)
+* [R: Using Rayshader to map urban shadows using LiDAR data](https://github.com/dawaldron/data-visualizations/blob/master/indianapolis%20rayshading/indy%20rayshading.R)
 
 # Unsorted
 
