@@ -21,3 +21,4 @@ Tools for spatial analysis in R and Python
 * [Terrain Sculptor software for generalising DEMs to keep only important features](http://terraincartography.com/terrainsculptor/)
 * [Python: Whitebox GIS tools as a Python package](https://pypi.org/project/whitebox/) 
 * [QGIS/GRASS: v.clean.advanced and rmdangle (t 0.04) for removing dangling lines](https://gis.stackexchange.com/questions/118201/automated-removal-of-dangles-loose-ends-in-line-with-qgis)
+* [QGIS and SAGA: Generating realistic hillshades with topographic openness](https://www.stevefaeembra.com/blog/2015/8/1/a-recipe-for-hillshading-with-qgis-and-saga) 
