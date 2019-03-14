@@ -22,3 +22,5 @@ Tools for spatial analysis in R and Python
 * [Python: Whitebox GIS tools as a Python package](https://pypi.org/project/whitebox/) 
 * [QGIS/GRASS: v.clean.advanced and rmdangle (t 0.04) for removing dangling lines](https://gis.stackexchange.com/questions/118201/automated-removal-of-dangles-loose-ends-in-line-with-qgis)
 * [QGIS and SAGA: Generating realistic hillshades with topographic openness](https://www.stevefaeembra.com/blog/2015/8/1/a-recipe-for-hillshading-with-qgis-and-saga) 
+* [QGIS: Enhancing terrain cartography with natural shadows](
+https://landscapearchaeology.org/2019/qgis-shadows/) 
